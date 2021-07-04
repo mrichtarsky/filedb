@@ -1,0 +1,33 @@
+[package]
+name = "filedb"
+version = "0.1.0"
+authors = ["mrich"]
+edition = "2018"
+
+[lib]
+name = "filedb"
+path = "src/lib.rs"
+edition = "2018"
+
+[dependencies]
+bincode = "*"
+blake3 = "*"
+chrono = "0.4.0"
+encoding = "0.2.33"
+encoding_rs = "*"
+flate2 = "*"
+fs_extra = "*"
+glob = "*"
+separator = "*"
+serde = "*"
+serde_derive = "*"
+serial_test = "*"
+sha2 = "*"
+tar = "*"
+tempdir = "*"
+walkdir = "2"
+zip = "0.5.8"
+xz = "*"
+
+[profile.release]
+debug = true
