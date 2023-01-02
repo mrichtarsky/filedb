@@ -1,6 +1,9 @@
 /// Global settings
 const DECOMPRESS_ARCHIVES: bool = false;
 
+// BACKUP_DIR is ignored for deduplication, so files stored there won't be reported as dupes
+const BACKUP_DIR: &str = "/immens/_backups";
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -8,7 +11,9 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serial_test;
 
-use std::{collections::HashMap, collections::HashSet, fs, fs::File, io, path::Path, path::PathBuf, time};
+use std::{
+    collections::HashMap, collections::HashSet, fs, fs::File, io, path::Path, path::PathBuf, time,
+};
 use std::ffi::{OsStr, OsString};
 
 use flate2::Compression;
@@ -27,14 +32,14 @@ use walkdir::WalkDir;
 
 use xz::read::XzDecoder;
 
-
 type Hash256 = [u8; 32];
 const EMPTY_HASH: Hash256 = [0 as u8; 32];
 type PathToIndexMap = HashMap<OsString, u32>;
 type DirToFilesMap = HashMap<u32, Vec<u32>>;
 
 #[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug, Clone)]
-struct FileDbEntry {
+struct FileDbEntry
+{
     name: OsString,
     is_dir: bool,
     parent: u32,
@@ -48,7 +53,8 @@ struct FileDbEntry {
 type FileDb = Vec<FileDbEntry>;
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use std::path::PathBuf;
     use std::time::{UNIX_EPOCH, Duration};
 
@@ -63,7 +69,8 @@ mod tests {
     const TEST_WORK_DIR: &str = "/home/mrich/projects/filedb/test_work";
     const WRITE_EXPECTED_RESULTS: bool = false;
 
-    fn check_expected_results(testname: &str, file_db: &FileDb) {
+    fn check_expected_results(testname: &str, file_db: &FileDb)
+    {
         let mut path_buf = PathBuf::from(EXPECTED_DATA_DIR);
         fs::create_dir_all(&path_buf).unwrap();
         path_buf.push(testname);
@@ -83,11 +90,13 @@ mod tests {
         }
     }
 
-    fn get_sizes(file_db: &FileDb) -> Vec<u64> {
+    fn get_sizes(file_db: &FileDb) -> Vec<u64>
+    {
         file_db.iter().map(|entry| entry.size).collect::<Vec<u64>>()
     }
 
-    fn _get_time_string(epoch_seconds: u64) -> String {
+    fn _get_time_string(epoch_seconds: u64) -> String
+    {
         let d = UNIX_EPOCH + Duration::from_secs(epoch_seconds);
         let datetime = DateTime::<Local>::from(d);
         datetime.format("%Y-%m-%d %H:%M:%S.%f").to_string()
@@ -105,7 +114,8 @@ mod tests {
     }
 
     #[test]
-    fn test_propagate_basic() {
+    fn test_propagate_basic()
+    {
         let mut file_db = Vec::new();
         file_db.push(FileDbEntry {
             name: OsString::from("/"),
@@ -114,7 +124,7 @@ mod tests {
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         file_db.push(FileDbEntry {
             name: OsString::from("file.txt"),
@@ -123,14 +133,15 @@ mod tests {
             size: 10,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         propagate_sizes(&mut file_db);
         assert_eq!(get_sizes(&file_db), vec!(10, 10));
     }
 
     #[test]
-    fn test_propagate_uneven_levels() {
+    fn test_propagate_uneven_levels()
+    {
         let mut file_db = Vec::new();
         file_db.push(FileDbEntry {
             name: OsString::from("/test"),
@@ -139,7 +150,7 @@ mod tests {
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         file_db.push(FileDbEntry {
             name: OsString::from("a"),
@@ -148,7 +159,7 @@ mod tests {
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         file_db.push(FileDbEntry {
             name: OsString::from("b"),
@@ -157,7 +168,7 @@ mod tests {
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         file_db.push(FileDbEntry {
             name: OsString::from("c"),
@@ -166,7 +177,7 @@ mod tests {
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         file_db.push(FileDbEntry {
             name: OsString::from("dd"),
@@ -175,7 +186,7 @@ mod tests {
             size: 10,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         file_db.push(FileDbEntry {
             name: OsString::from("b"),
@@ -184,93 +195,105 @@ mod tests {
             size: 100,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         propagate_sizes(&mut file_db);
         assert_eq!(get_sizes(&file_db), vec!(110, 10, 10, 10, 10, 100));
     }
 
     #[test]
-    fn test_propagate_incremental() {
+    fn test_propagate_incremental()
+    {
         let mut file_db = Vec::new();
-        file_db.push(FileDbEntry { // 0, /
+        file_db.push(FileDbEntry {
+            // 0, /
             name: OsString::from("/"),
             is_dir: true,
             parent: std::u32::MAX,
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
-        file_db.push(FileDbEntry { // 1, /d1
+        file_db.push(FileDbEntry {
+            // 1, /d1
             name: OsString::from("d1"),
             is_dir: true,
             parent: 0,
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
-        file_db.push(FileDbEntry { // 2, /d1/d2
+        file_db.push(FileDbEntry {
+            // 2, /d1/d2
             name: OsString::from("d2"),
             is_dir: true,
             parent: 1,
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
-        file_db.push(FileDbEntry { // 3, /d1/d2/d3
+        file_db.push(FileDbEntry {
+            // 3, /d1/d2/d3
             name: OsString::from("b"),
             is_dir: true,
             parent: 2,
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
-        file_db.push(FileDbEntry { // 4, /d1/f1
+        file_db.push(FileDbEntry {
+            // 4, /d1/f1
             name: OsString::from("f1"),
             is_dir: false,
             parent: 1,
             size: 100,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
-        file_db.push(FileDbEntry { // 5, /d1/d2/f2
+        file_db.push(FileDbEntry {
+            // 5, /d1/d2/f2
             name: OsString::from("dd"),
             is_dir: false,
             parent: 2,
             size: 10,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
 
         propagate_sizes(&mut file_db);
         assert_eq!(get_sizes(&file_db), vec!(110, 110, 10, 0, 100, 10));
 
-        file_db.push(FileDbEntry { // 6, /d1/d2/d4
+        file_db.push(FileDbEntry {
+            // 6, /d1/d2/d4
             name: OsString::from("d4"),
             is_dir: true,
             parent: 2,
             size: 0,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
-        file_db.push(FileDbEntry { // 7, /d1/d2/d4/f3
+        file_db.push(FileDbEntry {
+            // 7, /d1/d2/d4/f3
             name: OsString::from("f3"),
             is_dir: false,
             parent: 6,
             size: 200,
             modified: 1,
             accessed: 1,
-            hash: EMPTY_HASH
+            hash: EMPTY_HASH,
         });
         propagate_sizes(&mut file_db);
-        assert_eq!(get_sizes(&file_db), vec!(310, 310, 210, 0, 100, 10, 200, 200));
+        assert_eq!(
+            get_sizes(&file_db),
+            vec!(310, 310, 210, 0, 100, 10, 200, 200)
+        );
     }
 
     #[test]
@@ -409,7 +432,11 @@ mod tests {
             check_expected_results("mv_before", &file_db);
             save_compressed(&file_db_name, &file_db);
         }
-        mv(&file_db_name, Path::new("/home/mrich/projects/filedb/test_work/mv/simple/b"), Path::new("/home/mrich/projects/filedb/test_work/mv/simple/a"));
+        mv(
+            &file_db_name,
+            Path::new("/home/mrich/projects/filedb/test_work/mv/simple/b"),
+            Path::new("/home/mrich/projects/filedb/test_work/mv/simple/a"),
+        );
         let file_db_new = load_compressed(&file_db_name);
         dump_file_db(&file_db_new);
         check_expected_results("mv_after", &file_db_new);
@@ -423,7 +450,8 @@ fn get_secs(time: &time::SystemTime) -> u64
         .as_secs()
 }
 
-fn is_root_index(entry_index: u32) -> bool {
+fn is_root_index(entry_index: u32) -> bool
+{
     entry_index == 0
 }
 
@@ -460,7 +488,12 @@ fn propagate_sizes(file_db: &mut FileDb)
     let mut max_level = 0;
     for i in 1..file_db.len() {
         let parent_index = file_db[i].parent as usize;
-        assert!(levels[parent_index] != std::u16::MAX);
+        assert!(
+            levels[parent_index] != std::u16::MAX,
+            "i {:?} parent_index {:?}",
+            i,
+            parent_index
+        );
         levels[i] = levels[parent_index] + 1;
         if levels[i] > max_level {
             max_level = levels[i];
@@ -492,7 +525,8 @@ fn propagate_hashes(file_db: &mut FileDb)
     levels[0] = 0;
     let mut max_level = 0;
     for i in 1..file_db.len() {
-        if file_db[i].is_dir { // Files already have hashes. They are kept at std::u16::MAX and thus never processed by the loop below.
+        if file_db[i].is_dir {
+            // Files already have hashes. They are kept at std::u16::MAX and thus never processed by the loop below.
             let parent_index = file_db[i].parent as usize;
             assert!(levels[parent_index] != std::u16::MAX);
             levels[i] = levels[parent_index] + 1;
@@ -502,7 +536,9 @@ fn propagate_hashes(file_db: &mut FileDb)
             }
             dir_to_entries.entry(i as u32).or_insert(Vec::<u32>::new());
         }
-        let entry = dir_to_entries.entry(file_db[i].parent).or_insert(Vec::<u32>::new());
+        let entry = dir_to_entries
+            .entry(file_db[i].parent)
+            .or_insert(Vec::<u32>::new());
         (*entry).push(i as u32);
     }
 
@@ -526,7 +562,13 @@ fn propagate_hashes(file_db: &mut FileDb)
         }
     }
     // All entries except the root
-    assert!(file_db.iter().skip(1).filter(|entry| entry.hash == EMPTY_HASH).peekable().peek().is_none());
+    assert!(file_db
+        .iter()
+        .skip(1)
+        .filter(|entry| entry.hash == EMPTY_HASH)
+        .peekable()
+        .peek()
+        .is_none());
 
     // let empty_hashes = file_db.iter().enumerate().filter(|(index, entry)| entry.hash == EMPTY_HASH).collect::<Vec<_>>();
     // for (index, _) in empty_hashes {
@@ -627,20 +669,20 @@ fn decompress_to_tmp_dir(path: &Path) -> Option<TempDir>
             path_buf.push(path.file_stem().unwrap());
             let mut dest_file = File::create(path_buf).unwrap();
             if io::copy(&mut gz_decoder, &mut dest_file).is_err() {
-                return None
+                return None;
             }
         }
         "tar" => {
             let mut archive = Archive::new(file);
             if archive.unpack(tmp_dir.path()).is_err() {
-                return None
+                return None;
             }
         }
         "tgz" => {
             let gz_decoder = GzDecoder::new(file);
             let mut archive = Archive::new(gz_decoder);
             if archive.unpack(tmp_dir.path()).is_err() {
-                return None
+                return None;
             }
         }
         "xz" => {
@@ -649,7 +691,7 @@ fn decompress_to_tmp_dir(path: &Path) -> Option<TempDir>
             path_buf.push(path.file_stem().unwrap());
             let mut dest_file = File::create(path_buf).unwrap();
             if io::copy(&mut xz_decoder, &mut dest_file).is_err() {
-                return None
+                return None;
             }
         }
         "zip" => decompress_zip(path, &tmp_dir),
@@ -663,7 +705,8 @@ fn add_files_from_archive(
     file_db: &mut FileDb,
     path_to_index: &mut PathToIndexMap,
     dir_to_file_indexes: &DirToFilesMap,
-    replace_prefix_to: &Path)
+    replace_prefix_to: &Path,
+)
 {
     let tmp_dir = decompress_to_tmp_dir(path);
     if tmp_dir.is_some() {
@@ -672,17 +715,14 @@ fn add_files_from_archive(
             file_db,
             path_to_index,
             dir_to_file_indexes,
-            replace_prefix_to
+            replace_prefix_to,
         );
     } else {
         eprintln!("Error unpacking archive {:?}", path);
     }
 }
 
-fn replace_prefix(
-    path: &Path,
-    replace_from: &Path,
-    replace_to: &Path) -> PathBuf
+fn replace_prefix(path: &Path, replace_from: &Path, replace_to: &Path) -> PathBuf
 {
     if replace_to.as_os_str().len() == 0 {
         return path.to_path_buf();
@@ -707,12 +747,13 @@ fn get_hash_for_file(path: &Path) -> io::Result<Hash256>
     Ok(hasher.finalize().into())
 }
 
-fn add_file_db_entry(
-    file_db: &mut FileDb,
-    file_db_entry: FileDbEntry
-) -> u32
+fn add_file_db_entry(file_db: &mut FileDb, file_db_entry: FileDbEntry) -> u32
 {
-    assert!(file_db.len() < (std::u32::MAX - 1) as usize, "Maximum size exceeded, only {} files/dirs supported", std::u32::MAX);
+    assert!(
+        file_db.len() < (std::u32::MAX - 1) as usize,
+        "Maximum size exceeded, only {} files/dirs supported",
+        std::u32::MAX
+    );
     file_db.push(file_db_entry);
     (file_db.len() - 1) as u32
 }
@@ -720,11 +761,18 @@ fn add_file_db_entry(
 fn add_root_path_components(
     root_dir: &Path,
     file_db: &mut FileDb,
-    path_to_index: &mut PathToIndexMap)
+    path_to_index: &mut PathToIndexMap,
+)
 {
-    assert!(!DECOMPRESS_ARCHIVES, "Not implemented in this code block, please fix if needed");
+    assert!(
+        !DECOMPRESS_ARCHIVES,
+        "Not implemented in this code block, please fix if needed"
+    );
 
-    assert!(!path_to_index.contains_key(root_dir.as_os_str()), "Existing path added, not supported");
+    assert!(
+        !path_to_index.contains_key(root_dir.as_os_str()),
+        "Existing path added, not supported"
+    );
 
     // Add all components of the root dir, including "/", as separate entries, since WalkDir won't report them
     let mut root_dir_prefix = root_dir.clone();
@@ -765,9 +813,7 @@ fn add_root_path_components(
     }
 }
 
-fn build_dir_to_files_map(
-    file_db: &FileDb,
-    path_to_index: &PathToIndexMap) -> DirToFilesMap
+fn build_dir_to_files_map(file_db: &FileDb, path_to_index: &PathToIndexMap) -> DirToFilesMap
 {
     let mut dir_to_files_map = DirToFilesMap::new();
     for (path, path_index) in path_to_index {
@@ -803,7 +849,8 @@ fn add_dir_recursive(
     file_db: &mut FileDb,
     path_to_index: &mut PathToIndexMap,
     dir_to_file_indexes: &DirToFilesMap,
-    replace_prefix_to: &Path)
+    replace_prefix_to: &Path,
+)
 {
     println!("Adding dir {:?}", root_dir_);
     assert!(root_dir_.is_absolute());
@@ -822,8 +869,7 @@ fn add_dir_recursive(
         add_root_path_components(root_dir, file_db, path_to_index);
     }
 
-'walker:
-    for result_dir_entry in WalkDir::new(root_dir)
+    'walker: for result_dir_entry in WalkDir::new(root_dir)
         .follow_links(false)
         .contents_first(false)
     {
@@ -846,7 +892,13 @@ fn add_dir_recursive(
         let is_dir = metadata.is_dir();
 
         if DECOMPRESS_ARCHIVES && is_archive(&path) && !is_dir {
-            add_files_from_archive(dir_entry.path(), file_db, path_to_index, dir_to_file_indexes, &path);
+            add_files_from_archive(
+                dir_entry.path(),
+                file_db,
+                path_to_index,
+                dir_to_file_indexes,
+                &path,
+            );
         } else {
             let parent_path = path.parent().unwrap();
             let parent_index = *path_to_index.get(parent_path.as_os_str()).unwrap();
@@ -914,7 +966,7 @@ fn crawl_initial(root_dir: &Path) -> FileDb
         &mut file_db,
         &mut path_to_index,
         &dir_to_file_indexes,
-        Path::new("")
+        Path::new(""),
     );
     file_db
 }
@@ -943,7 +995,7 @@ fn crawl_add(file_db: &mut FileDb, root_dir: &Path)
         file_db,
         &mut path_to_index,
         &dir_to_file_indexes,
-        Path::new("")
+        Path::new(""),
     );
 }
 
@@ -978,7 +1030,11 @@ fn prune_deleted_paths(file_db: &mut FileDb)
                 || (!metadata.is_dir() && metadata.len() != entry.size)
                 || (!metadata.is_dir() && get_secs(&metadata.modified().unwrap()) != entry.modified)
             {
-                assert!(!entry.is_dir, "Not implemented (need to remove all referencing paths)");
+                assert!(
+                    !entry.is_dir,
+                    "Not implemented (need to remove all referencing paths) {:?}",
+                    path
+                );
                 deleted_entries += 1;
             } else {
                 let mut entry_copy = entry.clone();
@@ -989,14 +1045,20 @@ fn prune_deleted_paths(file_db: &mut FileDb)
                 }
                 add_file_db_entry(&mut new_file_db, entry_copy);
                 if entry.is_dir {
-                    path_to_index.insert(path.as_os_str().to_owned(), (new_file_db.len() - 1) as u32);
+                    path_to_index
+                        .insert(path.as_os_str().to_owned(), (new_file_db.len() - 1) as u32);
                 }
             }
         } else {
             deleted_entries += 1;
         }
     }
-    println!("Pruned {} paths, old: {}, new: {}", deleted_entries, file_db.len(), new_file_db.len());
+    println!(
+        "Pruned {} paths, old: {}, new: {}",
+        deleted_entries,
+        file_db.len(),
+        new_file_db.len()
+    );
     *file_db = new_file_db;
     file_db.shrink_to_fit();
 }
@@ -1016,10 +1078,220 @@ pub fn update(file_db_name: &Path, root_dir: &Path)
         &mut file_db,
         &mut path_to_index,
         &dir_to_files,
-        Path::new("")
+        Path::new(""),
     );
 
+    propagate_sizes(&mut file_db);
+    propagate_hashes(&mut file_db);
+
     save_compressed(file_db_name, &file_db);
+}
+
+pub fn dedup(file_db_name: &Path, backup_dir: Option<&Path>)
+{
+    let mut file_db = load_compressed(file_db_name);
+    propagate_hashes(&mut file_db);
+
+    let mut hash_and_size_to_indices = HashMap::<(Hash256, u64), Vec<u32>>::new();
+    for (index, entry) in file_db.iter().enumerate() {
+        let path = get_full_path(&file_db, index as u32);
+        if path.starts_with(BACKUP_DIR) {
+            continue;
+        }
+        let indices = hash_and_size_to_indices
+            .entry((entry.hash, entry.size))
+            .or_insert(Vec::<u32>::new());
+        indices.push(index as u32);
+    }
+    let mut num_duped_bytes = 0;
+    let mut max_dupe_count = 0;
+    let mut entries = hash_and_size_to_indices.iter().collect::<Vec<_>>();
+    entries.sort_by_key(|((_, size), dupes)| size * dupes.len() as u64);
+    for (key, indices) in entries.into_iter().rev() {
+        let (_, size) = key;
+        let dupe_count = indices.len() - 1;
+        if dupe_count != 0 {
+            if dupe_count > max_dupe_count {
+                max_dupe_count = dupe_count;
+            }
+            let duped_bytes = dupe_count as u64 * size;
+            println!(
+                "Duplicated data of size: {} dupes: {} duped GB: {}",
+                size.separated_string(),
+                dupe_count,
+                duped_bytes / 1024 / 1024 / 1024
+            );
+            println!("  Dupe locations:");
+            let mut first = true;
+            for index in indices {
+                let path = get_full_path(&file_db, *index);
+                println!("    {:?}", path);
+                if !first && backup_dir.is_some() {
+                    if Path::new(&path).exists() {
+                        // File can be removed by a previous operation which moved a parent dir
+                        println!("      Moving");
+                        let dest_dir = backup_dir.unwrap().join(path.file_name().unwrap());
+                        assert!(!Path::new(&dest_dir).exists());
+                        fs_extra::move_items(&[path], backup_dir.unwrap(), &CopyOptions::new())
+                            .unwrap();
+                    }
+                } else {
+                    first = false;
+                }
+            }
+            num_duped_bytes += duped_bytes;
+        }
+    }
+    println!("Total duped bytes: {}", num_duped_bytes.separated_string());
+    println!("Max dupe count: {}", max_dupe_count);
+}
+
+// Check whether all files in backup_dir are elsewhere, and list those that aren't
+// Comparison is done by 256bit hash and size, not by name or content
+// Ignores empty files (also does not remove them)
+pub fn all_files_elsewhere(file_db_name: &Path, backup_dir: &Path, remove_dupes: bool)
+{
+    // Add all files outside of backup_dir to lookup structure
+    let file_db = load_compressed(file_db_name);
+    let mut hash_to_index: HashMap<Hash256, Vec<u32>> = HashMap::new();
+    for (i, entry) in file_db.iter().enumerate() {
+        if entry.is_dir || entry.size == 0 {
+            continue;
+        }
+        let entry_path = get_full_path(&file_db, i as u32);
+        if !entry_path.starts_with(backup_dir) {
+            let map_entry = hash_to_index.entry(entry.hash).or_insert(Vec::<u32>::new());
+            (*map_entry).push(i as u32);
+        }
+    }
+
+    let mut num_dupes = 0;
+    let mut num_files_missing = 0;
+    let mut num_dupes_sum = 0;
+    let mut num_dupe_entries = 0;
+    let mut min_num_dupes = std::usize::MAX;
+    let mut max_num_dupes = 0;
+    let mut entry_and_dupes = vec![];
+    let mut num_duped_bytes = 0;
+    let mut num_missing_bytes = 0;
+    let mut num_dirs = 0;
+    let mut num_empty_files = 0;
+    // Iterate all files in backup_dir and check if they are present in lookup structure
+    for (i, entry) in file_db.iter().enumerate() {
+        let entry_path = get_full_path(&file_db, i as u32);
+        if !entry_path.starts_with(backup_dir) {
+            continue;
+        }
+        if entry.is_dir {
+            num_dirs += 1;
+            continue;
+        }
+        if entry.size == 0 {
+            num_empty_files += 1;
+            continue;
+        }
+        let hash = entry.hash;
+        let value = hash_to_index.get(&hash);
+        if value.is_none() {
+            println!("File missing: {:?}", entry_path);
+            num_files_missing += 1;
+            num_missing_bytes += entry.size;
+        } else {
+            let dupe_list = value.unwrap();
+            let mut found = false;
+            for dupe in dupe_list {
+                let dupe_entry = &file_db[*dupe as usize];
+                if dupe_entry.size == entry.size
+                /*&& dupe_entry.name == entry.name*/
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                println!("File missing: {:?}", entry_path);
+                num_files_missing += 1;
+                num_missing_bytes += entry.size;
+            } else {
+                let num_entry_dupes = dupe_list.len();
+                num_dupes_sum += num_entry_dupes;
+                num_dupe_entries += 1;
+                min_num_dupes = std::cmp::min(min_num_dupes, num_dupes);
+                max_num_dupes = std::cmp::max(max_num_dupes, num_dupes);
+                entry_and_dupes.push((i as u32, dupe_list));
+                num_dupes += 1;
+                num_duped_bytes += entry.size;
+                if fs::metadata(&entry_path).is_ok() {
+                    if remove_dupes {
+                        println!("Removing {:?}", entry_path);
+                        let res = fs::remove_file(&entry_path);
+                        if res.is_err() {
+                            println!("Error removing {:?}", entry_path);
+                        }
+                        let mut parent = entry_path.parent().unwrap();
+                        while fs::remove_dir(parent).is_ok() {
+                            // Will only remove empty dirs
+                            println!("Removed parent dir {:?}", parent);
+                            parent = parent.parent().unwrap();
+                        }
+                    } else {
+                        println!("Would remove {:?}", entry_path);
+                    }
+                }
+            }
+        }
+    }
+
+    println!("Num dupes: {}", num_dupes);
+    println!("Files missing: {}", num_files_missing);
+    println!("Dirs: {}", num_dirs);
+    println!("Empty files: {}", num_empty_files);
+    println!("");
+    println!("Min num dupes: {}", min_num_dupes);
+    println!("Max num dupes: {}", max_num_dupes);
+    println!("Avg num dupes: {}", num_dupes_sum / num_dupe_entries);
+    println!("Num duped bytes: {}", num_duped_bytes);
+    println!("Num missing bytes: {}", num_missing_bytes);
+}
+
+pub fn stats(file_db_name: &Path, prefix: Option<&Path>)
+{
+    let file_db = load_compressed(file_db_name);
+
+    let mut num_files = 0;
+    let mut num_dirs = 0;
+    let mut size = 0;
+    for (index, entry) in file_db.iter().enumerate() {
+        if prefix.is_some() {
+            let full_path = get_full_path(&file_db, index as u32);
+            if !full_path.starts_with(prefix.unwrap()) {
+                continue;
+            }
+        }
+        if entry.is_dir {
+            num_dirs += 1;
+        } else {
+            num_files += 1;
+            size += entry.size;
+        }
+    }
+    let (largest_entry_name, largest_entry_size) = file_db
+        .iter()
+        .map(|entry| (&entry.name, entry.size))
+        .max_by_key(|elem| elem.1)
+        .unwrap();
+    println!(
+        "Entries: {}, files: {}, dirs: {}, size: {}",
+        file_db.len().separated_string(),
+        num_files.separated_string(),
+        num_dirs.separated_string(),
+        size.separated_string()
+    );
+    println!(
+        "Largest entry: {}, size: {}",
+        largest_entry_name.to_str().unwrap(),
+        largest_entry_size.separated_string()
+    );
 }
 
 pub fn mv(file_db_name: &Path, from_dir: &Path, to_dir: &Path)
@@ -1063,13 +1335,41 @@ pub fn mv(file_db_name: &Path, from_dir: &Path, to_dir: &Path)
     }
 }
 
+pub fn rm_recursive(file_db_name: &Path, rm_path: &Path)
+{
+    println!("Removing path {:?}, are you sure?", rm_path);
+    let mut words = String::new();
+    io::stdin()
+        .read_line(&mut words)
+        .ok()
+        .expect("Failed to read line.");
+    if words.trim() != "y" {
+        return;
+    }
+    let mut file_db = load_compressed(file_db_name);
+    let rm_path_metadata = fs::metadata(rm_path).unwrap();
+    if rm_path_metadata.is_dir() {
+        fs::remove_dir_all(rm_path).unwrap();
+    } else {
+        fs::remove_file(rm_path).unwrap();
+    }
+    prune_deleted_paths(&mut file_db);
+    propagate_sizes(&mut file_db);
+    propagate_hashes(&mut file_db);
+    save_compressed(file_db_name, &file_db);
+}
+
 fn dump_helper(file_db: &FileDb, full: bool)
 {
     for index in 0..file_db.len() {
         let entry = &file_db[index];
         let path = get_full_path(&file_db, index as u32);
         let out_string = format!("{:?}", path);
-        let stripped_string = out_string.strip_prefix("\"").unwrap().strip_suffix("\"").unwrap();
+        let stripped_string = out_string
+            .strip_prefix("\"")
+            .unwrap()
+            .strip_suffix("\"")
+            .unwrap();
         if full {
             println!("{} {} {:?}", stripped_string, entry.size, entry.hash);
         } else {
@@ -1088,184 +1388,4 @@ pub fn dump_full(file_db_name: &Path)
 {
     let file_db = load_compressed(file_db_name);
     dump_helper(&file_db, true);
-}
-
-pub fn stats(file_db_name: &Path, prefix: Option<&Path>)
-{
-    let file_db = load_compressed(file_db_name);
-
-    let mut num_files = 0;
-    let mut num_dirs = 0;
-    let mut size = 0;
-    for (index, entry) in file_db.iter().enumerate() {
-        if prefix.is_some() {
-            let full_path = get_full_path(&file_db, index as u32);
-            if !full_path.starts_with(prefix.unwrap()) {
-                continue;
-            }
-        }
-        if entry.is_dir {
-            num_dirs += 1;
-        } else {
-            num_files += 1;
-            size += entry.size;
-        }
-    }
-    let (largest_entry_name, largest_entry_size) = file_db
-        .iter()
-        .map(|entry| (&entry.name, entry.size))
-        .max_by_key(|elem| elem.1)
-        .unwrap();
-    println!(
-        "Entries: {}, files: {}, dirs: {}, size: {}",
-        file_db.len().separated_string(),
-        num_files.separated_string(),
-        num_dirs.separated_string(),
-        size.separated_string()
-    );
-    println!(
-        "Largest entry: {}, size: {}",
-        largest_entry_name.to_str().unwrap(),
-        largest_entry_size.separated_string()
-    );
-}
-
-// Check whether all files in backup_dir are elsewhere, and list those that aren't
-// Comparison is done by 256bit hash and size, not by name or content
-// Ignores empty files (also does not remove them)
-pub fn all_files_elsewhere(file_db_name: &Path, backup_dir: &Path, remove_dupes: bool)
-{
-    // Add all files outside of backup_dir to lookup structure
-    let file_db = load_compressed(file_db_name);
-    let mut hash_to_index: HashMap<Hash256, Vec<u32>> = HashMap::new();
-    for (i, entry) in file_db.iter().enumerate() {
-        if entry.is_dir || entry.size == 0 {
-            continue;
-        }
-        let entry_path = get_full_path(&file_db, i as u32);
-        if !entry_path.starts_with(backup_dir) {
-            let map_entry = hash_to_index.entry(entry.hash).or_insert(Vec::<u32>::new());
-            (*map_entry).push(i as u32);
-        }
-    }
-
-    let mut num_dupes = 0;
-    let mut num_files_missing = 0;
-    let mut num_dupes_sum = 0;
-    let mut num_dupe_entries = 0;
-    let mut min_num_dupes = std::usize::MAX;
-    let mut max_num_dupes = 0;
-    let mut entry_and_dupes = vec!();
-    let mut num_duped_bytes = 0;
-    let mut num_missing_bytes = 0;
-    let mut num_dirs = 0;
-    let mut num_empty_files = 0;
-    // Iterate all files in backup_dir and check if they are present in lookup structure
-    for (i, entry) in file_db.iter().enumerate() {
-        let entry_path = get_full_path(&file_db, i as u32);
-        if !entry_path.starts_with(backup_dir) {
-            continue;
-        }
-        if entry.is_dir {
-            num_dirs += 1;
-            continue;
-        }
-        if entry.size == 0 {
-            num_empty_files += 1;
-            continue;
-        }
-        let hash = entry.hash;
-        let value = hash_to_index.get(&hash);
-        if value.is_none() {
-            println!("File missing: {:?}", entry_path);
-            num_files_missing += 1;
-            num_missing_bytes += entry.size;
-        } else {
-            let dupe_list = value.unwrap();
-            let mut found = false;
-            for dupe in dupe_list {
-                let dupe_entry = &file_db[*dupe as usize];
-                if dupe_entry.size == entry.size /*&& dupe_entry.name == entry.name*/ {
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
-                println!("File missing: {:?}", entry_path);
-                num_files_missing += 1;
-                num_missing_bytes += entry.size;
-            } else {
-                let num_entry_dupes = dupe_list.len();
-                num_dupes_sum += num_entry_dupes;
-                num_dupe_entries += 1;
-                min_num_dupes = std::cmp::min(min_num_dupes, num_dupes);
-                max_num_dupes = std::cmp::max(max_num_dupes, num_dupes);
-                entry_and_dupes.push((i as u32, dupe_list));
-                num_dupes += 1;
-                num_duped_bytes += entry.size;
-                if fs::metadata(&entry_path).is_ok() {
-                    if remove_dupes {
-                        println!("Removing {:?}", entry_path);
-                        let res = fs::remove_file(&entry_path);
-                        if res.is_err() {
-                            println!("Error removing {:?}", entry_path);
-                        }
-                        let mut parent = entry_path.parent().unwrap();
-                        while fs::remove_dir(parent).is_ok() { // Will only remove empty dirs
-                            println!("Removed parent dir {:?}", parent);
-                            parent = parent.parent().unwrap();
-                        }
-                    } else {
-                        println!("Would remove {:?}", entry_path);
-                    }
-                }
-            }
-        }
-    }
-
-    println!("Num dupes: {}", num_dupes);
-    println!("Files missing: {}", num_files_missing);
-    println!("Dirs: {}", num_dirs);
-    println!("Empty files: {}", num_empty_files);
-    println!("");
-    println!("Min num dupes: {}", min_num_dupes);
-    println!("Max num dupes: {}", max_num_dupes);
-    println!("Avg num dupes: {}", num_dupes_sum / num_dupe_entries);
-    println!("Num duped bytes: {}", num_duped_bytes);
-    println!("Num missing bytes: {}", num_missing_bytes);
-}
-
-pub fn dedup(file_db_name: &Path)
-{
-    let mut file_db = load_compressed(file_db_name);
-    propagate_hashes(&mut file_db);
-
-    let mut hash_and_size_to_indices = HashMap::<(Hash256, u64), Vec<u32>>::new();
-    for (index, entry) in file_db.iter().enumerate() {
-        let indices = hash_and_size_to_indices.entry((entry.hash, entry.size)).or_insert(Vec::<u32>::new());
-        indices.push(index as u32);
-    }
-    let mut num_duped_bytes = 0;
-    let mut max_dupe_count = 0;
-    let mut entries = hash_and_size_to_indices.iter().collect::<Vec<_>>();
-    entries.sort_by_key(|((_, size), dupes)| size * dupes.len() as u64);
-    for (key, indices) in entries.into_iter().rev() {
-        let (_, size) = key;
-        let dupe_count = indices.len() - 1;
-        if  dupe_count != 0 {
-            if dupe_count > max_dupe_count {
-                max_dupe_count = dupe_count;
-            }
-            let duped_bytes = dupe_count as u64 * size;
-            println!("Duplicated data of size: {} dupes: {} duped GB: {}", size.separated_string(), dupe_count, duped_bytes / 1024 / 1024 / 1024);
-            println!("  Dupe locations:");
-            for index in indices {
-                let path = get_full_path(&file_db, *index);
-                println!("    {:?}", path);
-            }
-            num_duped_bytes += duped_bytes;
-        }
-    }
-    println!("Total duped bytes: {}", num_duped_bytes.separated_string());
-    println!("Max dupe count: {}", max_dupe_count);
 }

@@ -1,0 +1,35 @@
+DONE
+---
+filedb features
+- scan all files
+- archives get their unpacked structure added
+- archives are also added like a directory
+  (not as a file, since there might be dupes between packed and unpacked
+   this does not lose generality)
+- ignorelist for filtering out items
+
+
+- for all files with hash suffixes in i:\seagate_3tb\sdd1\pics\pictures_from_old_sdcard_broken_s7\
+  check whether they are in filedb with file stem
+
+
+DOING
+---
+
+TODO
+----
+- implement shell mode
+- implement delete with update of filedb
+- sourcecode: harmonize dir and path names
+- get rid of accessed (requires filedb migr)
+- do not open pipes
+
+FUTURE
+---
+Those would be easy to implement but not done since not needed.
+
+- Change add to check if the file already present, so the same initial
+  tree can be specified and it will pick up everything automatically.
+  - Have option to hash and verify existing files
+  - Prune removed files
+- Add command to drop filedb

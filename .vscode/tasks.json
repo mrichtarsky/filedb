@@ -1,0 +1,51 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cargo",
+			"subcommand": "run",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "Rust: cargo run - filedb"
+		},
+		{
+			"label": "filedb init",
+			"type": "shell",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"command": "cargo",
+			"args": [
+				"run",
+				"init"
+			]
+		},
+		{
+			"label": "filedb load",
+			"type": "shell",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"command": "cargo",
+			"args": [
+				"run",
+				"load"
+			]
+		},
+		{
+			"label": "filedb test with output",
+			"type": "shell",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"command": "cargo",
+			"args": [
+				"test",
+				"--lib",
+				"--",
+				"--nocapture",
+			]
+		}
+	]
+}
