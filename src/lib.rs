@@ -1150,7 +1150,8 @@ pub fn dedup(file_db_name: &Path, backup_dir: Option<&Path>)
 // Check whether all files in backup_dir are elsewhere, and list those that aren't
 // Comparison is done by 256bit hash and size, not by name or content
 // Ignores empty files (also does not remove them)
-pub fn all_files_elsewhere(file_db_name: &Path, backup_dir: &Path, remove_dupes: bool)
+pub fn all_files_elsewhere(file_db_name: &Path, backup_dir: &Path,
+    opt_other_dir: Option<&Path>, remove_dupes: bool)
 {
     // Add all files outside of backup_dir to lookup structure
     let file_db = load_compressed(file_db_name);
@@ -1200,13 +1201,21 @@ pub fn all_files_elsewhere(file_db_name: &Path, backup_dir: &Path, remove_dupes:
         } else {
             let dupe_list = value.unwrap();
             let mut found = false;
-            for dupe in dupe_list {
-                let dupe_entry = &file_db[*dupe as usize];
+            for dupe_index in dupe_list {
+                let dupe_entry = &file_db[*dupe_index as usize];
                 if dupe_entry.size == entry.size
                 /*&& dupe_entry.name == entry.name*/
                 {
-                    found = true;
-                    break;
+                    if let Some(other_dir) = opt_other_dir {
+                        let dupe_path = get_full_path(&file_db, *dupe_index);
+                        if dupe_path.starts_with(other_dir) {
+                            found = true;
+                            break;
+                        }
+                    } else {
+                        found = true;
+                        break;
+                    }
                 }
             }
             if !found {

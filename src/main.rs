@@ -41,18 +41,19 @@ fn main()
             filedb::dedup(Path::new(db_file_name), Some(backup_dir));
         }
         "all_files_elsewhere" => {
-            if args.len() != 4 {
+            if args.len() != 4 && args.len() != 5 {
                 print_usage_and_exit_with_error();
             }
             let backup_dir = Path::new(&args[3]);
-            filedb::all_files_elsewhere(Path::new(db_file_name), backup_dir, false);
+            let opt_other_dir = args.get(4).map(Path::new);
+            filedb::all_files_elsewhere(Path::new(db_file_name), backup_dir, opt_other_dir, false);
         }
         "all_files_elsewhere_remove_dupes" => {
             if args.len() != 4 {
                 print_usage_and_exit_with_error();
             }
             let backup_dir = Path::new(&args[3]);
-            filedb::all_files_elsewhere(Path::new(db_file_name), backup_dir, true);
+            filedb::all_files_elsewhere(Path::new(db_file_name), backup_dir, None, true);
         }
         "stats" => {
             if args.len() == 3 {
