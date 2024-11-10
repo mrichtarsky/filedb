@@ -1,0 +1,77 @@
+# How to use:
+# $ pip install pre-commit
+# $ cd $git_repo; pre-commit install
+#
+# To check all files:
+# $ pre-commit run --all-files
+repos:
+
+#
+# Common
+#
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.6.0  # Use the ref you want to point at
+  hooks:
+  - id: check-added-large-files
+  - id: check-executables-have-shebangs
+  - id: check-merge-conflict
+  - id: check-shebang-scripts-are-executable
+  - id: check-symlinks
+  - id: check-toml
+  - id: check-xml
+  - id: check-yaml
+  - id: debug-statements  # Python
+  - id: detect-aws-credentials
+    args: [--allow-missing-credentials]
+  - id: detect-private-key
+  - id: double-quote-string-fixer
+  - id: end-of-file-fixer
+  - id: mixed-line-ending
+    args: [--fix=no]
+  - id: trailing-whitespace
+
+# For ignoring false positives see
+# https://github.com/crate-ci/typos?tab=readme-ov-file#false-positives
+- repo: https://github.com/crate-ci/typos
+  rev: v1.24.6
+  hooks:
+  - id: typos
+
+#
+# Rust
+#
+- repo: https://github.com/FeryET/pre-commit-rust
+  rev: v1.1.1
+  hooks:
+    - id: cargo-check
+
+- repo: local
+  hooks:
+  - id: fmt
+    name: cargo fmt
+    description: Format files with cargo fmt.
+    entry: cargo +nightly fmt
+    language: system
+    types_or: ["rust", "file"]
+    files: '(.rs)$'
+    args: ["--"]
+
+#
+# Shell
+#
+- repo: https://github.com/shellcheck-py/shellcheck-py
+  rev: v0.10.0.1
+  hooks:
+  - id: shellcheck
+    args: [
+      "-eSC1090,SC1091,SC2002",
+      "-sbash",
+    ]
+
+#
+# JSON with comments
+#
+- repo: https://gitlab.com/bmares/check-json5
+  rev: v1.0.0
+  hooks:
+  - id: check-json5

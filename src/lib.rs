@@ -1150,8 +1150,12 @@ pub fn dedup(file_db_name: &Path, backup_dir: Option<&Path>)
 // Check whether all files in backup_dir are elsewhere, and list those that aren't
 // Comparison is done by 256bit hash and size, not by name or content
 // Ignores empty files (also does not remove them)
-pub fn all_files_elsewhere(file_db_name: &Path, backup_dir: &Path,
-    opt_other_dir: Option<&Path>, remove_dupes: bool)
+pub fn all_files_elsewhere(
+    file_db_name: &Path,
+    backup_dir: &Path,
+    opt_other_dir: Option<&Path>,
+    remove_dupes: bool,
+)
 {
     // Add all files outside of backup_dir to lookup structure
     let file_db = load_compressed(file_db_name);

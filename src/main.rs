@@ -4,7 +4,8 @@ use filedb;
 
 fn print_usage_and_exit_with_error()
 {
-    println!("Usage: filedb path_to_filedb <command>
+    println!(
+        "Usage: filedb path_to_filedb <command>
 
     Where command is one of:
 
@@ -28,7 +29,8 @@ fn print_usage_and_exit_with_error()
     stats
     dump
     dump_full
-    ");
+    "
+    );
     process::exit(1);
 }
 
