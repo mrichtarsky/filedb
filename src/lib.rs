@@ -1110,37 +1110,38 @@ pub fn dedup(file_db_name: &Path, backup_dir: Option<&Path>)
     for (key, indices) in entries.into_iter().rev() {
         let (_, size) = key;
         let dupe_count = indices.len() - 1;
-        if dupe_count != 0 {
-            if dupe_count > max_dupe_count {
-                max_dupe_count = dupe_count;
-            }
-            let duped_bytes = dupe_count as u64 * size;
-            println!(
-                "Duplicated data of size: {} dupes: {} duped GB: {}",
-                size.separated_string(),
-                dupe_count,
-                duped_bytes / 1024 / 1024 / 1024
-            );
-            println!("  Dupe locations:");
-            let mut first = true;
-            for index in indices {
-                let path = get_full_path(&file_db, *index);
-                println!("    {:?}", path);
-                if !first && backup_dir.is_some() {
-                    if Path::new(&path).exists() {
-                        // File can be removed by a previous operation which moved a parent dir
-                        println!("      Moving");
-                        let dest_dir = backup_dir.unwrap().join(path.file_name().unwrap());
-                        assert!(!Path::new(&dest_dir).exists());
-                        fs_extra::move_items(&[path], backup_dir.unwrap(), &CopyOptions::new())
-                            .unwrap();
-                    }
-                } else {
-                    first = false;
-                }
-            }
-            num_duped_bytes += duped_bytes;
+        if dupe_count == 0 {
+            continue;
         }
+        if dupe_count > max_dupe_count {
+            max_dupe_count = dupe_count;
+        }
+        let duped_bytes = dupe_count as u64 * size;
+        println!(
+            "Duplicated data of size: {} dupes: {} duped GB: {}",
+            size.separated_string(),
+            dupe_count,
+            duped_bytes / 1024 / 1024 / 1024
+        );
+        println!("  Dupe locations:");
+        let mut first = true;
+        for index in indices {
+            let path = get_full_path(&file_db, *index);
+            println!("    {:?}", path);
+            if !first && backup_dir.is_some() {
+                // File may have been removed by a previous operation which moved a parent dir
+                if Path::new(&path).exists() {
+                    println!("      Moving");
+                    let dest_dir = backup_dir.unwrap().join(path.file_name().unwrap());
+                    assert!(!Path::new(&dest_dir).exists());
+                    fs_extra::move_items(&[path], backup_dir.unwrap(), &CopyOptions::new())
+                        .unwrap();
+                }
+            } else {
+                first = false;
+            }
+        }
+        num_duped_bytes += duped_bytes;
     }
     println!("Total duped bytes: {}", num_duped_bytes.separated_string());
     println!("Max dupe count: {}", max_dupe_count);
