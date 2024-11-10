@@ -775,7 +775,7 @@ fn add_root_path_components(
     );
 
     // Add all components of the root dir, including "/", as separate entries, since WalkDir won't report them
-    let mut root_dir_prefix = root_dir.clone();
+    let mut root_dir_prefix = root_dir;
     let mut components = Vec::<&OsStr>::new();
     let mut found;
     loop {
