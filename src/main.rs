@@ -4,10 +4,30 @@ use filedb;
 
 fn print_usage_and_exit_with_error()
 {
-    println!("Usage: filedb path_to_filedb [add [path1 [path2]...]|update|dedup|dedup_move_dupes|all_files_elsewhere path|all_files_elsewhere_remove_dupes path|stats|mv|rm_recursive|dump|dump_full]
+    println!("Usage: filedb path_to_filedb <command>
 
-    rm_recursive: Remove path on file system and db
-    mv: Move path on file system and db
+    Where command is one of:
+
+    add path1 [path2] ...
+        Add given paths
+    update path
+        Rescan given path (path should be the initial path used to create the db)
+    dedup
+        Dedup and print results
+    dedup_move_dupes move_path
+        Dedup and move dupes to move_path
+    all_files_elsewhere path [elsewhere_path]
+        Check that all files in path are available somewhere else. If elsewhere_path
+        is specified, all copies must reside there.
+    all_files_elsewhere_remove_dupes path
+        Check that all files in path are available somewhere else and if so, remove
+    mv from to
+        Move path on file system and in db
+    rm_recursive path
+        Remove path on file system and in db
+    stats
+    dump
+    dump_full
     ");
     process::exit(1);
 }
